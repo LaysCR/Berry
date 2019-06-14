@@ -5,10 +5,9 @@ import time
 class Compass(threading.Thread):
     # Constructor
     def __init__(self):
-        hmc5883l = i2c_hmc5883l.i2c_hmc5883l(1)
-        hmc5883l.setContinuousMode()
-        hmc5883l.setDeclination(-20, 54)
-        self.angle = hmc5883l.getHeadingString()
+        self.hmc5883l = i2c_hmc5883l.i2c_hmc5883l(1)
+        self.hmc5883l.setContinuousMode()
+        self.hmc5883l.setDeclination(-20, 54)
         threading.Thread.__init__(self)
 
     # Thread
@@ -16,5 +15,6 @@ class Compass(threading.Thread):
         aux = 5
         while(aux > 0):
             aux-= 1
-            print(self.angle)
+            angle = self.hmc5883l.getHeadingString()
+            print(angle)
             time.sleep(0.5)
