@@ -10,11 +10,16 @@ class Compass(threading.Thread):
         self.hmc5883l.setDeclination(-20, 54)
         threading.Thread.__init__(self)
 
+    # Get Headings
+    def getAngle(self):
+        (angle, minutes)= self.hmc5883l.getHeading()
+        return angle
+    
     # Thread
     def run(self):
         aux = 5
         while(aux > 0):
             aux-= 1
-            angle = self.hmc5883l.getHeadingString()
+            (angle, minutes)= self.hmc5883l.getHeading()
             print(angle)
-            time.sleep(0.5)
+            time.sleep(1)
