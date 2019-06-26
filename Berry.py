@@ -1,4 +1,5 @@
 import time
+import math
 import threading
 from Berry_distance import Distance
 from Berry_acceleration import Accelerometer
@@ -30,25 +31,33 @@ try:
         y.append(axes['y'])
         angle.append(gyroscopeSensor.getAngle())
         time.sleep(0.1)
-    # Velocity
-    Vx = [0]
-    Vy = [0]
-    for i in range(len(x)-1):
-        Vx[i] += (x[i] + x[i+1])*0.2
-        Vy[i] += (y[i] + y[i+1])*0.2
-    # Distance
-    Sx = [0]
-    Sy = [0]
-    for i in range(len(Vx)-1):
-        Sx += (Vx[i] + Vx[i+1])*0.2
-        Sy += (Vy[i] + Vy[i+1])*0.2
-    # Each instant is 0.2s (from the sleep(0.2) in move method)
+    for i in range(len(x)):
+        x[i] = abs(x[i])
     print(x)
     print(y)
-    print(Vx)
-    print(Vy)
-    print(Sx)
-    print(Sy)
+    # Velocity
+    Vx = []
+    Vy = []
+    t = 0.2
+    for i in range(2, len(x)):
+        Vx.append((x[i] + x[i-1])*t/2)
+        Vy.append((y[i] + y[i-1])*t/2)
+    # Distance
+    Sx = []
+    Sy = []
+    for i in range(len(Vx)-1):
+        Sx.append((Vx[i] + Vx[i+1])*t/2)
+        Sy.append((Vy[i] + Vy[i+1])*t/2)
+    DeltaS = 0
+    for i in range(len(Sx)):
+        S = math.sqrt(Sx[i]*Sx[i] + Sy[i]*Sy[i])
+        DeltaS += S*100
+    print(DeltaS)
+    # Each instant is 0.2s (from the sleep(0.2) in move method)
+##    print(Vx)
+##    print(Vy)
+##    print(Sx)
+##    print(Sy)
     # Choose which side to turn
 ##    aux = 1
 ##    while(aux > 0):
