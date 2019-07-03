@@ -14,12 +14,15 @@ class Compass(threading.Thread):
     def getAngle(self):
         (angle, minutes)= self.hmc5883l.getHeading()
         return angle
+
+    # Get Acceleration
+    def getAxes(self):
+        axes = self.hmc5883l.getAxes()
+        return axes
     
     # Thread
     def run(self):
-        aux = 5
-        while(aux > 0):
-            aux-= 1
+        while(True):
             (angle, minutes)= self.hmc5883l.getHeading()
             print(angle)
             time.sleep(1)
