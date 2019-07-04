@@ -17,14 +17,11 @@ def moveFoward():
     while(distance > 20):
 ##        print("Distance = %1.f cm" % distance)
         dist.append(int(distance))
-        motors.move(8) # Move foward
-        axes = accelerationSensor.getAcceleration(True)
-##        axes = gyroscopeSensor.getAxes()
-        x.append(axes['x'])
-        y.append(axes['y'])
-##        print(axes[0])
-##        print(axes[1])
-        time.sleep(0.1)
+        motors.move(8, 0.2) # Move foward
+        axes = accelerationSensor.getAcceleration()
+        x.append(axes['y'])
+        y.append(axes['x'])
+        time.sleep(0.5)
         distance = ultrasonicSensor.getDistance()
     for i in range(len(x)):
         x[i] = abs(x[i])
@@ -59,7 +56,7 @@ def moveFoward():
         S = math.sqrt(Sx[i]*Sx[i] + Sy[i]*Sy[i])
         DeltaS += S*100 # Convert from m to cm
 
-        # Each instant is 0.2s (from the sleep(0.2) in move method)
+    # Each instant is 0.2s (from the sleep(0.2) in move method)
 ##    print(x)
 ##    print(y)
 ##    print(Vx)
@@ -71,38 +68,17 @@ def moveFoward():
     print(DeltaS)
     return DeltaS
 
-# Choose which side to turn
-def selectSide():
+# Check side
+def selectSide(side, seconds):
     angle = gyroscopeSensor.getAngle()
-    print("Angle = %1.d degress" % angle)
-    tempAngle = angle
-    X = 5
-    # Turn left X degrees
-    aux = angle + X
-    condition = aux
-    if(aux > 360):
-        condition = 0 + aux
-    print("Moving left")
-    while(tempAngle < condition):
-        tempAngle = gyroscopeSensor.getAngle()
-        print("Angle = %1.d degress" % tempAngle)
-        distance = ultrasonicSensor.getDistance()
-##        print("Distance = %1.f cm" % distance)
-        motors.move(4)
-        time.sleep(1)
-    # Turn right X degrees
-    aux = angle - X
-    condition = aux
-    if(aux < 0):
-        condition = 360 - aux
-    print("Moving right")
-    while(tempAngle > condition):
-        tempAngle = gyroscopeSensor.getAngle()
-        print("Angle = %1.d degress" % tempAngle)
-        distance = ultrasonicSensor.getDistance()
-##        print("Distance = %1.f cm" % distance)
-        motors.move(6) 
-        time.sleep(1)
+    print("Angle = %d" % angle)
+    motors.move(side, seconds)
+    distance = ultrasonicSensor.getDistance()
+    print(distance)
+    angle = gyroscopeSensor.getAngle()
+    print("Angle = %d" % angle)
+    time.sleep(0.5)
+    return distance, angle
     
 try:
     # Instantiate objects
@@ -111,8 +87,20 @@ try:
     gyroscopeSensor = Compass()
     accelerationSensor = Accelerometer()
 
-##    D = moveFoward()
-    selectSide()
+    initialAngle = gyroscopeSensor.getAngle()
+    # Choose which side to turn
+    seconds = 0.2
+    (distanceLeft, angleLeft) = selectSide(4, seconds) #(side, seconds)
+    (distanceRight, angleRight) = selectSide(6, 2*seconds) #(side, 2*seconds)
+    if(distanceLeft > distanceRight):
+        # Choose left
+        motors.move(4, 2*seconds)
+        time.sleep(1)
+        D = moveFoward()
+    else:
+        # Choose right
+        time.sleep(1)
+        D = moveFoward()
     
 # Reset by pressing CTRL + C
 except KeyboardInterrupt:
