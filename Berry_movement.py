@@ -15,8 +15,8 @@ class Movement(threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
 
-    # Go Straight
-    def moveFoward(self, seconds):
+    # Go Forward
+    def moveForward(self, seconds):
         error = 90
         if compass.getAngle() - error < 0:
             # Turn Left
@@ -71,7 +71,7 @@ class Movement(threading.Thread):
     # Thread
     def run(self):
         try:
-            moveFoward(seconds)
+            moveForward(seconds)
             turnLeft(secondsTurn)
             turnRight(secondsTurn)
             turnRight(secondsTurn)
