@@ -1,81 +1,97 @@
-from gpiozero import Motor
+from Berry_compass import Compass
+import RPi.GPIO as GPIO
 import threading
 import time
-from Berry_compass import Compass
 
 compass = Compass()
-seconds = 4
-secondsTurn = 0.5
+left = [22, 23, 24]
+right = [19, 20, 21]
+freq = 1.5
 
-left = Motor(enable=22, forward=23, backward=24)
-right = Motor(enable=19, forward=20, backward=21)
 
 class Movement(threading.Thread):
+
     # Constructor
     def __init__(self):
         threading.Thread.__init__(self)
 
-    # Go Forward
-    def moveForward(self, seconds):
-        error = 90
-        if compass.getAngle() - error < 0:
-            # Turn Left
-            turnLeft(secondsTurn)
-        elif compass.getAngle() + error > 360:
-            # Turn Right
-            turnRight(secondsTurn)
+    # Enable pins
+    def enablePins(self, ports):
+        GPIO.setmode(GPIO.BCM)
+        for port in ports:
+            GPIO.setup(port, GPIO.OUT)
 
-        speedLeft = 0.6
-        speedRight = 0.4
-        angle = compass.getAngle()
+    # Forward
+    def forward(self, side, speed):
+        self.enablePins(side)
+        pwm = GPIO.PWM(side[0], freq)
+        pwm.start(speed)
+        GPIO.output(side[0], True)
+        GPIO.output(side[1], True)
+        GPIO.output(side[2], False)
+
+    # Reverse
+    def reverse(self, side, speed):
+        self.enablePins(side)
+        pwm = GPIO.PWM(side[0], freq)
+        pwm.start(speed)
+        GPIO.output(side[0], True)
+        GPIO.output(side[1], False)
+        GPIO.output(side[2], True)
+
+    # Movement
+    def moveForward(self, angle, seconds, speedLeft, speedRight):
+        print(angle)
+        newAngle = compass.getAngle()
+        print("New = ", newAngle)
         stop = time.time() + seconds
         while time.time() < stop:
-            left.forward(speedLeft)
-            right.forward(speedRight)
-            newAngle = compass.getAngle()
             if newAngle != angle:
                 # Correct to Left
                 if newAngle > angle:
-                    if speedLeft != 0.9:
-                        speedLeft += 0.1
-                        speedRight -= 0.1
+                    if speedLeft != 100:
+                        speedLeft += 20
+                        speedRight -= 20
                 # Correct to Right
                 else:
-                    if speedRight != 0.9:
-                        speedLeft -= 0.1
-                        speedRight += 0.1
+                    if speedRight != 100:
+                        speedLeft -= 20
+                        speedRight += 20
+            self.forward(left, speedLeft)
+            self.forward(right, speedRight)
 
-                speedLeft = round(speedLeft, 2)
-                speedRight = round(speedRight, 2)
-        left.stop()
-        right.stop()
+        print(speedLeft)
+        print(speedRight)
+        GPIO.cleanup()
+        return speedLeft, speedRight
 
-    # Turn Left
-    def turnLeft(self, secondsTurn):
-        stopTurning = time.time() + secondsTurn
-        while time.time() < stopTurning:
-            left.backward()
-            right.forward()
-        left.stop()
-        right.stop()
+    def moveLeft(self, seconds):
+        stop = time.time() + seconds
+        while time.time() < stop:
+            self.reverse(left, 60)
+            self.forward(right, 40)
+        GPIO.cleanup()
 
-    # Turn Right
-    def turnRight(self, secondsTurn):
-        stopTurning = time.time() + secondsTurn
-        while time.time() < stopTurning:
-            left.forward()
-            right.backward()
-        left.stop()
-        right.stop()
+    def moveRight(self, seconds):
+        stop = time.time() + seconds
+        while time.time() < stop:
+            self.forward(left, 60)
+            self.reverse(right, 40)
+        GPIO.cleanup()
 
     # Thread
     def run(self):
-        try:
-            moveForward(seconds)
-            turnLeft(secondsTurn)
-            turnRight(secondsTurn)
-            turnRight(secondsTurn)
-            turnLeft(secondsTurn)
-        # Reset by pressing CTRL + C
-        except KeyboardInterrupt:
-            print("Measurement stopped by User")
+        print("right")
+        self.move(6)
+        time.sleep(2)
+
+
+# try:
+#     while True:
+#         motors = Movement()
+#         motors.forward(left, 0)
+#         motors.forward(right, 0)
+#
+# except KeyboardInterrupt:
+#     print("Measurement stopped by User")
+#     GPIO.cleanup()
