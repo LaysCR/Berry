@@ -1,102 +1,44 @@
-import smbus
-import time
+from i2clibraries import i2c_adxl345
 import threading
+import time
 
-# Select the correct i2c bus for this revision of Raspberry Pi
-revision = ([l[12:-1] for l in open('/proc/cpuinfo','r').readlines() if l[:8]=="Revision"]+['0000'])[0]
-bus = smbus.SMBus(1 if int(revision, 16) >= 4 else 0)
-
-# ADXL345 constants
-EARTH_GRAVITY_MS2   = 9.80665
-SCALE_MULTIPLIER    = 0.004
-
-DATA_FORMAT         = 0x31
-BW_RATE             = 0x2C
-POWER_CTL           = 0x2D
-
-BW_RATE_1600HZ      = 0x0F
-BW_RATE_800HZ       = 0x0E
-BW_RATE_400HZ       = 0x0D
-BW_RATE_200HZ       = 0x0C
-BW_RATE_100HZ       = 0x0B
-BW_RATE_50HZ        = 0x0A
-BW_RATE_25HZ        = 0x09
-
-RANGE_2G            = 0x00
-RANGE_4G            = 0x01
-RANGE_8G            = 0x02
-RANGE_16G           = 0x03
-
-MEASURE             = 0x08
-AXES_DATA           = 0x32
 
 class Accelerometer(threading.Thread):
     # Constructor
     def __init__(self):
-        self.address = 0x53
-        self.setBandwidthRate(BW_RATE_100HZ)
-        self.setRange(RANGE_2G)
-        self.enableMeasurement()
+        self.adxl345 = i2c_adxl345.i2c_adxl345(1)
+        self.adxl345.setScale(2)
         threading.Thread.__init__(self)
 
-    def enableMeasurement(self):
-        bus.write_byte_data(self.address, POWER_CTL, MEASURE)
+    # Get Acceleration
+    def getAcceleration(self):
+        self.adxl345.setOption(0x1E, 47)
+        self.adxl345.setOption(0x1F, 230)
+        self.adxl345.setOption(0x20, 229)
+        # print(self.adxl345.getOptions(0x1E))
+        # print(self.adxl345.getOptions(0x1F))
+        # print(self.adxl345.getOptions(0x20))
+        (x, y, z) = self.adxl345.getAxes()
+        # Convert from G's to m/s2
+        x = round(x*9.81, 2)
+        y = round(y*9.81, 2)
 
-    def setBandwidthRate(self, rate_flag):
-        bus.write_byte_data(self.address, BW_RATE, rate_flag)
-
-    # Set the measurement range for 10-bit readings
-    def setRange(self, range_flag):
-        value = bus.read_byte_data(self.address, DATA_FORMAT)
-
-        value &= ~0x0F;
-        value |= range_flag;  
-        value |= 0x08;
-
-        bus.write_byte_data(self.address, DATA_FORMAT, value)
-
-    # Returns the current reading from the sensor for each axis
-    #
-    # Parameter gforce:
-    #    False (default): result is returned in m/s^2
-    #    True           : result is returned in gs
-    def getAcceleration(self, gforce = False):
-        bytes = bus.read_i2c_block_data(self.address, AXES_DATA, 6)
-        
-        x = bytes[0] | (bytes[1] << 8)
-        if(x & (1 << 16 - 1)):
-            x = x - (1<<16)
-
-        y = bytes[2] | (bytes[3] << 8)
-        if(y & (1 << 16 - 1)):
-            y = y - (1<<16)
-
-        z = bytes[4] | (bytes[5] << 8)
-        if(z & (1 << 16 - 1)):
-            z = z - (1<<16)
-
-        x = x * SCALE_MULTIPLIER 
-        y = y * SCALE_MULTIPLIER
-        z = z * SCALE_MULTIPLIER
-
-        if gforce == False:
-            x = x * EARTH_GRAVITY_MS2
-            y = y * EARTH_GRAVITY_MS2
-            z = z * EARTH_GRAVITY_MS2
-
-        x = round(x, 4)
-        y = round(y, 4)
-        z = round(z, 4)
-
-        return {"x": x, "y": y, "z": z}
+        return x, y
 
     # Thread
     def run(self):
-        aux = 5
-        while(aux > 0):
-            aux-= 1
-            axes = self.getAcceleration(True)
-            print "   x = %.3fG" % ( axes['x'] )
-            print "   y = %.3fG" % ( axes['y'] )
-            print "   z = %.3fG" % ( axes['z'] )
-            time.sleep(0.5)
+        while True:
+            print(self.getAcceleration())
+            time.sleep(1)
+
+
+# try:
+#     accelerometer = Accelerometer()
+#     while True:
+#         print("Axes", accelerometer.getAcceleration())
+#         # print("Correction", accelerometer.setCorrection())
+#         time.sleep(1)
+#
+# except KeyboardInterrupt:
+#     print("Measurement stopped by User")
+#     GPIO.cleanup()
