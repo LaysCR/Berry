@@ -1,70 +1,62 @@
 import time
 import math
 import threading
-from Berry_distance import Distance
-from Berry_acceleration import Accelerometer
+from gpiozero import Motor
+from Berry_gpiozero import Movement
+from gpiozero import DistanceSensor
 from Berry_compass import Compass
-from Berry_movement import Movement
+from Berry_acceleration import Accelerometer
 
 
-# Move foward and detect obstacles
-def moveFoward():
-    x = []
-    y = []
-    z = []
-    angle = []
-    dist = []
-    distance = ultrasonicSensor.getDistance()
 
-    while (distance > 30):
-        #        print("Distance = %1.f cm" % distance)
-        dist.append(int(distance))
-        motors.move(8, 0.2)  # Move foward
-        axes = accelerationSensor.getAcceleration()
-        x.append(axes['y'])
-        y.append(axes['x'])
-        # time.sleep(0.2)
-        distance = ultrasonicSensor.getDistance()
-    # Velocity
-    Vx = []
-    Vy = []
-    t = 0.2
-    for i in range(0, len(x)):
-        if (i == 0):
-            Vx.append(x[i] * t / 2)
-            Vy.append(x[i] * t / 2)
-        else:
-            Vx.append((x[i] + x[i - 1]) * t / 2)
-            Vy.append((y[i] + y[i - 1]) * t / 2)
-    # Distance
-    Sx = []
-    Sy = []
-    for i in range(0, len(Vx)):
-        if (i == 0):
-            Sx.append(Vx[i] * t / 2)
-            Sy.append(Vy[i] * t / 2)
-        else:
-            Sx.append((Vx[i] + Vx[i - 1]) * t / 2)
-            Sy.append((Vy[i] + Vy[i - 1]) * t / 2)
-    Dx = 0
-    Dy = 0
+# Move forward and detect obstacles
+def straight(angle):
+    speedLeft = 0.6
+    speedRight = 0.4
     DeltaS = 0
-    for i in range(len(Sx)):
-        Dx += Sx[i] * 100
-        Dy += Sy[i] * 100
-        S = math.sqrt(Sx[i] * Sx[i] + Sy[i] * Sy[i])
-        DeltaS += S * 100  # Convert from m to cm
+    minDistance = 20
+    distance = ultrasonicSensor.distance*100
+    error = 45
+    i = -1
+    A0 = 0
+    V0 = 0
+    S0 = 0
+    ttotal = 0
+    while distance > minDistance:
+        i += 1
+        # Prevent angle errors
+        if angle - error < 0:
+            # Turn Left
+            motors.turnLeft(0.2)
+            angle = compass.getAngle()
+        elif angle + error > 360:
+            # Turn Right
+            motors.turnRight(0.2)
+            angle = compass.getAngle()
+        # Go straight
+        start = time.time()
+        (speedLeft, speedRight) = motors.moveForward(angle, speedLeft, speedRight)
+        end = time.time()
+        # Acceleration
+        (Ax, Ay) = accelerationSensor.getAcceleration()
+        distance = ultrasonicSensor.distance*100
+        # time.sleep(0.2)
+        A = math.sqrt(Ax * Ax + Ay * Ay)
+        # Convert to seconds
+        t = end - start
+        # Velocity
 
-    # Each instant is 0.2s (from the sleep(0.2) in move method)
-    print(x)
-    print(y)
-    #    print(Vx)
-    #    print(Vy)
-    #    print(Sx)
-    #    print(Sy)
-    print(Dx)
-    print(Dy)
-    print(DeltaS)
+        V = (A0 + A) * t / 2
+        # Distance
+
+        S = (V + V0) * t / 2
+
+        V0 = V
+        S0 = S
+        A0 = A
+        ttotal += t
+        DeltaS += S * 10000  # Convert from m to cm
+    print(ttotal)
     return DeltaS
 
 
@@ -83,14 +75,13 @@ def selectSide(side, seconds):
 
 try:
     # Instantiate objects
+    compass = Compass()
     motors = Movement()
-    ultrasonicSensor = Distance()
-    gyroscopeSensor = Compass()
     accelerationSensor = Accelerometer()
+    ultrasonicSensor = DistanceSensor(echo=6, trigger=5, queue_len=1)
 
-    #    print(accelerationSensor.getAcceleration())
-
-    D = moveFoward()
+    D = straight(compass.getAngle())
+    print(D)
 
 #    iterations = 5
 #    seconds = 0.2
