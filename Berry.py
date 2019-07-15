@@ -8,69 +8,115 @@ from Berry_compass import Compass
 from Berry_acceleration import Accelerometer
 
 
-
 # Move forward and detect obstacles
 def straight(angle):
     speedLeft = 0.6
     speedRight = 0.4
     DeltaS = 0
-    minDistance = 20
+    minDistance = 30
     distance = ultrasonicSensor.distance*100
     error = 45
-    i = -1
     A0 = 0
     V0 = 0
-    S0 = 0
-    ttotal = 0
     while distance > minDistance:
-        i += 1
-        # Prevent angle errors
-        if angle - error < 0:
-            # Turn Left
-            motors.turnLeft(0.2)
-            angle = compass.getAngle()
-        elif angle + error > 360:
-            # Turn Right
-            motors.turnRight(0.2)
-            angle = compass.getAngle()
+        # Go straight
+        start = time.time()
+        (speedLeft, speedRight) = motors.moveForward(angle, speedLeft, speedRight)
+        end = time.time()
+        distance = ultrasonicSensor.distance*100
+        # Acceleration
+        (Ax, Ay) = accelerationSensor.getAcceleration()
+        # time.sleep(0.2)
+        A = math.sqrt(Ax * Ax + Ay * Ay)
+        # Convert to seconds
+        t = end - start
+        # Velocity
+        V = (A0 + A) * t / 2
+        # Distance
+        S = (V + V0) * t / 2
+        V0 = V
+        A0 = A
+        DeltaS += S * 10000  # Convert from m to cm
+    motors.stop()
+    return angle, round(DeltaS, 2)
+
+
+# Check side
+def selectSide():
+    seconds = 0.3
+    print("Inicial angle = ", compass.getAngle())
+    # Check Left
+    motors.turnLeft(seconds)
+    distanceLeft = ultrasonicSensor.distance*100
+    print(distanceLeft)
+    time.sleep(0.5)
+    # Go back
+    motors.turnRight(seconds)
+    time.sleep(0.5)
+    # Check Right
+    motors.turnRight(seconds)
+    distanceRight = ultrasonicSensor.distance*100
+    print(distanceRight)
+    time.sleep(0.5)
+    # Go back
+    motors.turnLeft(seconds)
+    time.sleep(0.5)
+    # Choose side
+    if distanceLeft > distanceRight:
+        motors.turnLeft(seconds)
+        side = 'Left'
+    else:
+        motors.turnRight(seconds)
+        side = 'Right'
+    motors.stop()
+    time.sleep(1)
+    print("Choose angle = ", compass.getAngle())
+    return compass.getAngle(), side
+
+
+# Go back
+def goBack(distance, angle):
+    speedLeft = 0.6
+    speedRight = 0.4
+    DeltaS = 0
+    A0 = 0
+    V0 = 0
+    print("Going back in angle = ", angle)
+    while distance > DeltaS:
         # Go straight
         start = time.time()
         (speedLeft, speedRight) = motors.moveForward(angle, speedLeft, speedRight)
         end = time.time()
         # Acceleration
         (Ax, Ay) = accelerationSensor.getAcceleration()
-        distance = ultrasonicSensor.distance*100
         # time.sleep(0.2)
         A = math.sqrt(Ax * Ax + Ay * Ay)
         # Convert to seconds
         t = end - start
         # Velocity
-
         V = (A0 + A) * t / 2
         # Distance
-
         S = (V + V0) * t / 2
-
         V0 = V
         S0 = S
         A0 = A
-        ttotal += t
-        DeltaS += S * 10000  # Convert from m to cm
-    print(ttotal)
-    return DeltaS
+        DeltaS += S * 10000  # Convert to cm
+        DeltaS = round(DeltaS, 2)
+    motors.stop()
+    print("Distance = ", DeltaS, "Angle = ", compass.getAngle())
 
 
-# Check side
-def selectSide(side, seconds):
-    angle = gyroscopeSensor.getAngle()
-    #    print("Angle = %d" % angle)
-    motors.move(side, seconds)
-    distance = ultrasonicSensor.getDistance()
-    #    print(distance)
-    angle = gyroscopeSensor.getAngle()
-    #    print("Angle = %d" % angle)
-    time.sleep(0.5)
-    return distance, angle
+def findPath():
+    while True:
+        print("SELECT SIDE")
+        (angle, side) = selectSide()
+        if ultrasonicSensor.distance * 100 < 30:
+            break
+        sideSelected.append(side)
+        print("STRAIGHT")
+        (direction, distance) = straight(angle)
+        directionVector.append(direction)
+        distanceVector.append(distance)
 
 
 try:
@@ -80,36 +126,34 @@ try:
     accelerationSensor = Accelerometer()
     ultrasonicSensor = DistanceSensor(echo=6, trigger=5, queue_len=1)
 
-    D = straight(compass.getAngle())
-    print(D)
-
-#    iterations = 5
-#    seconds = 0.2
-#    while(iterations > 0):
-#        iterations -= 1
-#        initialAngle = gyroscopeSensor.getAngle()
-#        # Choose which side to turn
-#        (distanceLeft, angleLeft) = selectSide(4, seconds) #(side, seconds)
-#        (distanceRight, angleRight) = selectSide(6, 2*seconds) #(side, 2*seconds)
-#        if(distanceLeft > distanceRight and distanceLeft > 30):
-#            # Choose left
-#            motors.move(4, 2*seconds)
-#            time.sleep(1)
-#            newAngle = gyroscopeSensor.getAngle()
-#            D = moveFoward()
-#            seconds = 0.2
-#        elif(distanceRight > 30):
-#            # Choose right
-#            time.sleep(1)
-#            newAngle = gyroscopeSensor.getAngle()
-#            D = moveFoward()
-#            seconds = 0.2
-#        else:
-#            iterations += 1
-#            seconds += 0.2
-#        print(D)
+    distanceVector = []
+    directionVector = []
+    sideSelected = []
+    while True:
+        findPath()
+        print(distanceVector)
+        print(directionVector)
+        # Go back one block
+        lastDistance = distanceVector[-1]
+        lastDirection = directionVector[-1]
+        oppositeAngle = motors.turnBack(lastDirection)
+        goBack(lastDistance, oppositeAngle)
+        distanceVector.pop(-1)
+        directionVector.pop(-1)
+        # Go to another side
+        unusedAngle = motors.turnBack(lastDirection)
+        # MUDAR PARA > 0 PARA FINALIZAR A BUSCA
+        # (atualmente segue apenas um lado da posicao inicial)
+        if len(selectSide()) > 1:
+            print(selectSide())
+            if sideSelected[-1] == 'Left':
+                motors.turnRight(0.3)
+            else:
+                motors.turnRight(0.3)
+            sideSelected.pop(-1)
+        else:
+            break
 
 # Reset by pressing CTRL + C
 except KeyboardInterrupt:
     print("Measurement stopped by User")
-    GPIO.cleanup()
