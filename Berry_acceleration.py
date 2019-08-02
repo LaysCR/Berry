@@ -1,13 +1,14 @@
 from i2clibraries import i2c_adxl345
 import threading
 import time
+from os import system
 
 
 class Accelerometer(threading.Thread):
     # Constructor
     def __init__(self):
         self.adxl345 = i2c_adxl345.i2c_adxl345(1)
-        self.adxl345.setScale(2)
+        self.adxl345.setScale(16)
         threading.Thread.__init__(self)
 
     # Get Acceleration
@@ -22,6 +23,7 @@ class Accelerometer(threading.Thread):
         # Convert from G's to m/s2
         x = round(x*9.81, 2)
         y = round(y*9.81, 2)
+        z = round(z*9.81, 2)
 
         return x, y
 
@@ -31,13 +33,14 @@ class Accelerometer(threading.Thread):
             print(self.getAcceleration())
             time.sleep(1)
 
-
+#
 # try:
 #     accelerometer = Accelerometer()
 #     while True:
 #         print("Axes", accelerometer.getAcceleration())
+#         time.sleep(0.3)
+#         system('clear')
 #         # print("Correction", accelerometer.setCorrection())
-#         time.sleep(1)
 #
 # except KeyboardInterrupt:
 #     print("Measurement stopped by User")

@@ -1,158 +1,204 @@
 import time
 import math
-import threading
+import numpy as np
 from gpiozero import Motor
-from Berry_gpiozero import Movement
 from gpiozero import DistanceSensor
 from Berry_compass import Compass
+from Berry_movement import Movement
 from Berry_acceleration import Accelerometer
 
 
-# Move forward and detect obstacles
+# Segue em frente e detecta obstáculos
 def straight(angle):
-    speedLeft = 0.6
-    speedRight = 0.4
-    DeltaS = 0
-    minDistance = 30
+
+    speedLeft = 0.6     # Porcentagem inicial da rotação do motor esquerdo
+    speedRight = 0.4    # Porcentagem inicial da rotação do motor direito
+    DeltaS = 0          # Deslocamento total inicial igual a 0
+    minDistance = 15    # Distância mínima aceitada até um obstáculo
+    A0 = 0              # Aceleração inicial igual a 0
+    V0 = 0              # Velocidade inicial igual a 0
+
     distance = ultrasonicSensor.distance*100
-    error = 45
-    A0 = 0
-    V0 = 0
     while distance > minDistance:
-        # Go straight
+
         start = time.time()
+        # Movimenta o robô para frente de acordo com a porcentagem de rotação
         (speedLeft, speedRight) = motors.moveForward(angle, speedLeft, speedRight)
         end = time.time()
+
+        # Lê a nova distância até o obstáculo a frente
         distance = ultrasonicSensor.distance*100
-        # Acceleration
+
+        # Mede e a aceleração resultante entre o ponto anterior e o atual
         (Ax, Ay) = accelerationSensor.getAcceleration()
-        # time.sleep(0.2)
         A = math.sqrt(Ax * Ax + Ay * Ay)
-        # Convert to seconds
-        t = end - start
-        # Velocity
+
+        t = end - start      # Calcula o tempo de locomoção para frente
+        # Calcula a velocidade e o deslocamento entre o ponto atual e o anterior
         V = (A0 + A) * t / 2
-        # Distance
         S = (V + V0) * t / 2
-        V0 = V
-        A0 = A
-        DeltaS += S * 10000  # Convert from m to cm
-    motors.stop()
+
+        A0 = A          # Atualiza o valor inicial da aceleração
+        V0 = V          # Atualiza o valor inicial da velocidade
+        DeltaS += S*100 # Soma o deslocamento atual com os anteriores convertendo para cm
+
+    motors.stop()   # Para a rotação das rodas
+
+    # Retorna a direção do movimento (angle) e o deslocamento total(DeltaS)
     return angle, round(DeltaS, 2)
 
 
-# Check side
+# Seleciona um lado para virar (esquerda ou direita)
 def selectSide():
-    seconds = 0.3
-    print("Inicial angle = ", compass.getAngle())
-    # Check Left
-    motors.turnLeft(seconds)
+
+    # Verifica a distância para o possível obstáculo na esquerda
+    motors.turnLeft(0.6)            # Vira para esquerda
+    angleLeft = compass.getAngle()  # Lê a direção atual
+    #Lê a distância até o obstáculo na esquerda
     distanceLeft = ultrasonicSensor.distance*100
-    print(distanceLeft)
-    time.sleep(0.5)
-    # Go back
-    motors.turnRight(seconds)
-    time.sleep(0.5)
-    # Check Right
-    motors.turnRight(seconds)
+
+    # Retorna para a direção inicial
+    motors.turnRight(0.5)
+
+    # Verifica a distância para o possível obstáculo na direita
+    motors.turnRight(0.5)           # Vira para a direita
+    angleRight = compass.getAngle() # Lê a direção atual
+    #Lê a distância até o obstáculo na direita
     distanceRight = ultrasonicSensor.distance*100
-    print(distanceRight)
-    time.sleep(0.5)
-    # Go back
-    motors.turnLeft(seconds)
-    time.sleep(0.5)
-    # Choose side
+
+    # Retorna para a direção inicial
+    motors.turnLeft(0.6)
+
+    # Seleciona o lado de maior distância
     if distanceLeft > distanceRight:
-        motors.turnLeft(seconds)
-        side = 'Left'
+        motors.turnLeft(0.6)    # Vira para esquerda
+        # Retorna o ângulo da esquerda (angleLeft) e o lado escolhido (Left)
+        return angleLeft, 'Left'
     else:
-        motors.turnRight(seconds)
-        side = 'Right'
-    motors.stop()
-    time.sleep(1)
-    print("Choose angle = ", compass.getAngle())
-    return compass.getAngle(), side
+        motors.turnRight(0.5)   # Vira para direita
+        # Retorna o ângulo da direita (angleRight) e o lado escolhido (Right)
+        return angleRight, 'Right'
 
 
-# Go back
+# Retorna uma posição seguindo em frente por
+# uma distância (distance) na angulação (angle)
 def goBack(distance, angle):
-    speedLeft = 0.6
-    speedRight = 0.4
-    DeltaS = 0
-    A0 = 0
-    V0 = 0
-    print("Going back in angle = ", angle)
+
+    speedLeft = 0.6     # Porcentagem inicial da rotação do motor esquerdo
+    speedRight = 0.4    # Porcentagem inicial da rotação do motor direito
+    DeltaS = 0          # Deslocamento total inicial igual a 0
+    A0 = 0              # Aceleração inicial igual a 0
+    V0 = 0              # Velocidade inicial igual a 0
+
+    # Segue em frente enquanto o deslocamento atual for menor que a distância determinada
     while distance > DeltaS:
-        # Go straight
+
         start = time.time()
+        # Movimenta o robô para frente de acordo com a porcentagem de rotação
         (speedLeft, speedRight) = motors.moveForward(angle, speedLeft, speedRight)
         end = time.time()
-        # Acceleration
+
+        # Mede e a aceleração resultante entre o ponto anterior e o atual
         (Ax, Ay) = accelerationSensor.getAcceleration()
-        # time.sleep(0.2)
         A = math.sqrt(Ax * Ax + Ay * Ay)
-        # Convert to seconds
-        t = end - start
-        # Velocity
+
+        t = end - start         # Calcula o tempo de locomoção para frente
+        # Calcula a velocidade e o deslocamento entre o ponto atual e o anterior
         V = (A0 + A) * t / 2
-        # Distance
         S = (V + V0) * t / 2
-        V0 = V
-        S0 = S
-        A0 = A
-        DeltaS += S * 10000  # Convert to cm
-        DeltaS = round(DeltaS, 2)
-    motors.stop()
-    print("Distance = ", DeltaS, "Angle = ", compass.getAngle())
+
+        A0 = A  # Atualiza o valor inicial da aceleração
+        V0 = V  # Atualiza o valor inicial da velocidade
+        DeltaS += S * 100  # Soma os deslocamentos e converte para cm
+
+    motors.stop()   # Para a rotação das rodas
+    # Adiciona o deslocamento à lista de todos os deslocamentos efetuados
+    fulldistanceVector.append(round(DeltaS, 2))
 
 
+# Inicia a exploração do ambiente
 def findPath():
-    while True:
-        print("SELECT SIDE")
+    i = 0
+    while i < 10:
+        i += 1      # Contador de iterações
+
+        # Chama o método de seleção de lado e recebe o ângulo e lado escolhido
         (angle, side) = selectSide()
+
+        # Verifica se o lado escolhido tem um obstáculo a menos de 30cm
         if ultrasonicSensor.distance * 100 < 30:
             break
+
+        # Insere o lado escolhido em uma pilha
         sideSelected.append(side)
-        print("STRAIGHT")
-        (direction, distance) = straight(angle)
+        # Insere o lado escolhido na lista de todos os lados
+        # escolhidos durante a exploração do local
+        fullsideSelected.append(side)
+
+        (direction, distance) = straight(angle) # Segue em frente na angulação dada
+
+        # Insere o ângulo atual em uma pilha
         directionVector.append(direction)
+        # Insere a distância percorrida em uma pilha
         distanceVector.append(distance)
+        # Insere o deslocamento na lista de todos deslocamentos
+        # efetuados durante a exploração do local
+        fulldistanceVector.append(distance)
 
 
 try:
-    # Instantiate objects
-    compass = Compass()
-    motors = Movement()
-    accelerationSensor = Accelerometer()
+
+    # Instancia os objetos utilizados
+    compass = Compass()                     # Controle do magnetômetro
+    motors = Movement()                     # Controle dos motores
+    accelerationSensor = Accelerometer()    # Controle do acelerômetro
+    # Controle do sensor ultrassônico
     ultrasonicSensor = DistanceSensor(echo=6, trigger=5, queue_len=1)
 
-    distanceVector = []
-    directionVector = []
-    sideSelected = []
-    while True:
+    distanceVector = []         # Pilha de deslocamentos
+    fulldistanceVector = []     # Lista de deslocamentos
+    directionVector = []        # Pilha de angulações
+    sideSelected = []           # Pilha de lados escolhidos
+    fullsideSelected = []       # Lista de lados escolhidos
+    iterations = 0              # Contador de iterações
+
+    while iterations < 5:
+
+        iterations += 1
+        # Explora o ambiente
         findPath()
-        print(distanceVector)
-        print(directionVector)
-        # Go back one block
-        lastDistance = distanceVector[-1]
-        lastDirection = directionVector[-1]
-        oppositeAngle = motors.turnBack(lastDirection)
-        goBack(lastDistance, oppositeAngle)
-        distanceVector.pop(-1)
-        directionVector.pop(-1)
-        # Go to another side
+
+        # Retorna um bloco
+        lastDistance = distanceVector[-1]       # Recebe o último deslocamento efetuado
+        lastDirection = directionVector[-1]     # Recebe a última direção caminhada
+
+        oppositeAngle = motors.turnBack(lastDirection)  # Rotaciona o robô para trás
+        # Adiciona o movimento à lista de todos os lados selecionados
+        fullsideSelected.append('Back')
+        # Adiciona deslocamento nulo à lista de deslocamentos
+        fulldistanceVector.append(0)
+
+        goBack(lastDistance, oppositeAngle)     # Segue para a posição anterior
+        distanceVector.pop(-1)                  # Remove o último deslocamento efetuado da pilha
+        directionVector.pop(-1)                 # Remove a última direção caminhada da pilha
+
+        # Vai para o lado ainda não explorado
         unusedAngle = motors.turnBack(lastDirection)
-        # MUDAR PARA > 0 PARA FINALIZAR A BUSCA
-        # (atualmente segue apenas um lado da posicao inicial)
-        if len(selectSide()) > 1:
-            print(selectSide())
+        fullsideSelected.append('Back')
+        fulldistanceVector.append(0)
+        if len(sideSelected) > 0:
             if sideSelected[-1] == 'Left':
-                motors.turnRight(0.3)
+                motors.turnRight(0.5)
+                straight(compass.getAngle())
             else:
-                motors.turnRight(0.3)
+                motors.turnRight(0.5)
+                straight(compass.getAngle())
             sideSelected.pop(-1)
         else:
             break
+
+    np.savetxt('distanceVector.npy', fulldistanceVector)
+    np.savetxt('sideSelected.npy', fullsideSelected, fmt='%s')
 
 # Reset by pressing CTRL + C
 except KeyboardInterrupt:
